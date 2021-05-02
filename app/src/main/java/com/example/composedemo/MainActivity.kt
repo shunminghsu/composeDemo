@@ -1,71 +1,121 @@
+/*
+ * Copyright 2021 The Android Open Source Project
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     https://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 package com.example.composedemo
 
+import Loading
+import LoginButton
+import LoginTextField
 import android.app.Application
 import android.os.Bundle
+import android.util.Log
+
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.viewModels
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
+
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.*
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.AccountBox
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.RectangleShape
-import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.tooling.preview.Preview
-import androidx.compose.ui.unit.TextUnit
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.lifecycle.*
+import androidx.compose.ui.window.Dialog
+import androidx.core.view.WindowCompat
+import androidx.lifecycle.viewmodel.compose.viewModel
+
 import com.example.composedemo.ui.theme.BlogBlue
-import com.example.composedemo.ui.theme.ComposeDemoTheme
+import com.example.composedemo.ui.theme.MyTheme
+import dev.chrisbanes.accompanist.insets.ProvideWindowInsets
 import dagger.hilt.android.AndroidEntryPoint
 import dagger.hilt.android.HiltAndroidApp
-import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
-import javax.inject.Inject
+
+/**
+ * Description:
+ * Demo
+ *
+ * @author ShunMing Hsu
+ * Date:    2021/5/1
+ */
 
 @HiltAndroidApp
 class MyApplication : Application()
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
-
-    private val mvvmViewModel:MyMvvmViewModel by viewModels()
+    private val viewModel:LoginViewModel by viewModels()
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        WindowCompat.setDecorFitsSystemWindows(window, true)
         super.onCreate(savedInstanceState)
         setContent {
-            ComposeDemoTheme {
-                Surface(color = MaterialTheme.colors.background) {
-                    MyApp(mvvmViewModel)
+            MyTheme {
+                ProvideWindowInsets(consumeWindowInsets = true) {
+                    MyApp()
                 }
             }
         }
     }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        // Release memory
+        viewModel.dispose()
+    }
+
 }
+val PADDING = 40.dp
 
 @Composable
-fun MyApp(viewModel: MyMvvmViewModel) {
-    loginScreen()
+fun MyApp() {
+    Log.d("Me", "MyApp")
+    Box(modifier = Modifier.fillMaxSize()) {
+        LoginScreen()
+        LoginStateDialog()
+    }
 }
 
-const val padding1 = 40
-@Preview
+//@Preview
 @Composable
-fun loginScreen() {
+fun LoginScreen(viewModel: LoginViewModel = viewModel()) {
+    Log.d("Me", "LoginScreen")
+    val focusRequester = remember { FocusRequester() }
+    val focusManager = LocalFocusManager.current
+
     Column(
         modifier = Modifier
             //.height(IntrinsicSize.Max)
@@ -92,9 +142,47 @@ fun loginScreen() {
                 .padding(top = 50.dp, bottom = 50.dp),
             style = TextStyle(fontSize = 18.sp, fontWeight = FontWeight.Bold)
         )
-        NameEditRow()
+        LoginTextField(
+            type = "username",
+            onValueChange = { viewModel.setName(it) },
+            iconId = R.drawable.ic_account,
+            defaultText = "用戶名或郵箱",
+            keyboardOptions = KeyboardOptions.Default.copy(
+                keyboardType = KeyboardType.Email,
+                autoCorrect = true,
+                imeAction = ImeAction.Next
+            ),
+            textFieldModifier = Modifier
+                .fillMaxWidth()
+                .wrapContentHeight(),
+            keyboardActions = KeyboardActions(
+                onNext = {
+                    focusRequester.requestFocus()
+                }
+            ),
+        )
         Spacer(modifier = Modifier.height(10.dp))
-        PasswordEditRow()
+        LoginTextField(
+            type = "password",
+            onValueChange = { viewModel.setPassword(it) },
+            iconId = R.drawable.ic_password,
+            defaultText = "密碼",
+            keyboardOptions = KeyboardOptions.Default.copy(
+                keyboardType = KeyboardType.Password,
+                autoCorrect = false,
+                imeAction = ImeAction.Done
+            ),
+            visualTransformation = PasswordVisualTransformation(),
+            textFieldModifier = Modifier
+                .fillMaxWidth()
+                .wrapContentHeight()
+                .focusRequester(focusRequester),
+            keyboardActions = KeyboardActions(
+                onDone = {
+                    focusManager.clearFocus()
+                }
+            ),
+        )
         Spacer(modifier = Modifier.height(10.dp))
         InfoTextRow()
         Spacer(modifier = Modifier.height(10.dp))
@@ -102,76 +190,14 @@ fun loginScreen() {
     }
 }
 
-
-@Composable
-fun NameEditRow() {
-    //Icon(Icons.Rounded.AccountBox, contentDescription = "Localized description")
-    Row(
-        modifier = Modifier
-            .height(IntrinsicSize.Min)
-            .fillMaxWidth()
-            .padding(start = padding1.dp, end = padding1.dp)
-            .border(1.dp, Color.Black, RoundedCornerShape(10))
-            //.background(Color.White)
-            .padding(0.dp),
-    ) {
-        Icon(
-            painter = painterResource(id = R.drawable.ic_account),
-            contentDescription = null,
-            tint = Color.Gray,
-            modifier = Modifier
-                .padding(12.dp)
-        )
-        Divider(color = Color.Black, modifier = Modifier
-            .fillMaxHeight()
-            .width(1.dp))
-        Text(text = "用戶名或郵箱",
-            modifier = Modifier
-                .padding(12.dp),
-            style = TextStyle(fontSize = 18.sp, color = Color.Gray)
-        )
-    }
-}
-
-@Composable
-fun PasswordEditRow() {
-    //Icon(Icons.Rounded.AccountBox, contentDescription = "Localized description")
-    Row(
-        modifier = Modifier
-            .height(IntrinsicSize.Min)
-            .fillMaxWidth()
-            .padding(start = padding1.dp, end = padding1.dp)
-            .padding(0.dp)
-            .border(1.dp, Color.Black, RoundedCornerShape(10))
-            //.background(Color.White)
-            .padding(0.dp)
-    ) {
-        Icon(
-            painter = painterResource(id = R.drawable.ic_password),
-            contentDescription = null,
-            tint = Color.Gray,
-            modifier = Modifier
-                .padding(12.dp)
-        )
-        Divider(color = Color.Black, modifier = Modifier
-            .fillMaxHeight()
-            .width(1.dp))
-        Text(text = "密碼",
-            modifier = Modifier
-                .padding(12.dp),
-            style = TextStyle(fontSize = 18.sp, color = Color.Gray)
-        )
-    }
-}
-
 @Composable
 fun InfoTextRow() {
-    //Icon(Icons.Rounded.AccountBox, contentDescription = "Localized description")
+    Log.d("Me", "InfoTextRow")
     Row(
         modifier = Modifier
             .height(IntrinsicSize.Min)
             .fillMaxWidth()
-            .padding(start = padding1.dp, end = padding1.dp),
+            .padding(start = PADDING, end = PADDING),
 
     ) {
         Spacer(modifier = Modifier.height(5.dp))
@@ -193,17 +219,20 @@ fun InfoTextRow() {
 }
 
 @Composable
-fun ButtonList() {
+fun ButtonList(viewModel: LoginViewModel = viewModel()) {
+    Log.d("Me", "ButtonList")
     Column(
         modifier = Modifier
             //.height(IntrinsicSize.Max)
             .fillMaxWidth()
             .fillMaxHeight()
-            .padding(start = padding1.dp, end = padding1.dp),
+            .padding(start = PADDING, end = PADDING),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         OutlinedButton(
-            onClick = {  },
+            onClick = {
+                viewModel.login(_username = viewModel.username.value, viewModel.pwd.value)
+            },
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(0.dp),
@@ -219,17 +248,17 @@ fun ButtonList() {
             modifier = Modifier.padding(5.dp),
             style = TextStyle(fontSize = 16.sp, color = Color.Gray)
         )
-        MyButton(
+        LoginButton(
             color = Color.Gray,
             child = { Text( text = "Google 帳號登入", style = TextStyle(fontSize = 18.sp) ) }
         )
         Spacer(modifier = Modifier.height(5.dp))
-        MyButton(
+        LoginButton(
             color = Color.Gray,
             child = { Text( text = "Facebook 帳號登入", style = TextStyle(fontSize = 18.sp) ) }
         )
         Spacer(modifier = Modifier.height(5.dp))
-        MyButton(
+        LoginButton(
             color = Color.Gray,
             child = { Text( text = "Line 帳號登入", style = TextStyle(fontSize = 18.sp) ) }
         )
@@ -237,55 +266,57 @@ fun ButtonList() {
 }
 
 @Composable
-fun MyButton(color: Color, child: @Composable () -> Unit) {
-    OutlinedButton(
-        onClick = {  },
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(0.dp),
-        border = BorderStroke(1.dp, color),
-        shape = RoundedCornerShape(50), // = 50% percent
-        //or shape = CircleShape
-        colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.Black)
-    ){
-        child()
+fun LoginStateDialog(viewModel: LoginViewModel = viewModel()) {
+    Log.d("Me", "LoginStateDialog")
+    if (viewModel.tryLogin.value) {
+        Dialog(
+            onDismissRequest = { viewModel.stopLogin() }
+        ) {
+            LoginState()
+        }
     }
 }
 
-
-
-
-
-
-
-
-@HiltViewModel
-class MyMvvmViewModel @Inject constructor(
-    private val savedStateHandle: SavedStateHandle,
-    private val repository: MyRepository,
-): ViewModel() {
-    private val _isRegisPage = MutableLiveData(false)
-    val isRegisPage: LiveData<Boolean> = _isRegisPage
-
-    fun goRegisterPage(value: Boolean) {
-        _isRegisPage.value = value
+@Composable
+fun LoginState(viewModel: LoginViewModel = viewModel()) {
+    Log.d("Me", "LoginState")
+    Box(
+        modifier = Modifier
+            .height(150.dp)
+            .width(150.dp)
+            .clip(RoundedCornerShape(10.dp))
+            .background(Color.White)
+            //.fillMaxSize()
+            //.padding(70.dp)
+            .wrapContentSize(Alignment.Center),
+    ) {
+        when(viewModel.loginState.value) {
+            "success" -> Text("登入成功")
+            "fail" -> Text("登入失敗")
+            else -> Loading() //FullScreenLoading()
+        }
     }
-    
-    private val _name = MutableLiveData("")
-    val name: LiveData<String> = _name
+}
 
-    // onNameChange is an event we're defining that the UI can invoke
-    // (events flow up from UI)
-    fun onNameChange(newName: String) {
-        _name.value = newName
+@Composable
+private fun FullScreenLoading() {
+    Box(
+        modifier = Modifier
+            .height(150.dp)
+            .width(150.dp)
+            .clip(RoundedCornerShape(10.dp))
+            .background(Color.White)
+            //.fillMaxSize()
+            //.padding(70.dp)
+            .wrapContentSize(Alignment.Center),
+    ) {
+        CircularProgressIndicator(color = BlogBlue)
     }
+}
 
-
-  fun test(text: String) {
-      viewModelScope.launch {
-          withContext(Dispatchers.IO) {
-              repository.save(text)
-          }
-      }
-  }
+//to fix the issue that parent would be re-composition
+@Composable
+fun Wrapper(content: @Composable () -> Unit) {
+    Log.d("Me", "Wrapper")
+    content()
 }
